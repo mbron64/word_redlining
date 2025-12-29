@@ -1,6 +1,11 @@
 node_modules/
-certs/
+certs/*
+!certs/README.md
+!certs/dev.crt.example
+!certs/dev.key.example
 *.log
+!logs/example.log
 .DS_Store
 .env
 .env.*
+!.env.example
