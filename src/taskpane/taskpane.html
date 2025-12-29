@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redline AI</title>
+    <link rel="stylesheet" href="taskpane.css" />
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="hero">
+        <div class="hero-badge">Word Add-in</div>
+        <h1>Redline AI</h1>
+        <p>Contextual contract edits with tracked changes and smart margin notes.</p>
+        <div class="hero-metrics">
+          <div>
+            <span class="metric-value" id="selectionLength">0</span>
+            <span class="metric-label">Selected words</span>
+          </div>
+          <div>
+            <span class="metric-value" id="commentCount">0</span>
+            <span class="metric-label">AI comments</span>
+          </div>
+          <div>
+            <span class="metric-value" id="revisionCount">0</span>
+            <span class="metric-label">Revisions</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="panel-title">Scope</div>
+        <p class="panel-subtitle">Choose the text you want the model to analyze.</p>
+        <div class="segmented" role="group" aria-label="Review scope">
+          <button class="segment is-active" data-scope="selection" type="button">Selection</button>
+          <button class="segment" data-scope="paragraph" type="button">Current paragraph</button>
+          <button class="segment" data-scope="document" type="button">Entire document</button>
+        </div>
+        <div class="hint-row">
+          <span id="scopeHint">Tip: Highlight a clause for best results.</span>
+          <button class="link-button" id="refreshSelection" type="button">Refresh selection</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">Review style</div>
+        <p class="panel-subtitle">Tune the tone and risk appetite.</p>
+        <div class="grid">
+          <label class="field">
+            <span>Risk posture</span>
+            <select id="riskProfile">
+              <option value="balanced">Balanced counsel</option>
+              <option value="cautious">Risk-averse</option>
+              <option value="aggressive">Aggressive negotiation</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Granularity</span>
+            <select id="granularity">
+              <option value="replace">Replace clause</option>
+              <option value="diff">Word-level diff (preview)</option>
+            </select>
+          </label>
+        </div>
+        <label class="toggle">
+          <input id="trackChanges" type="checkbox" checked />
+          <span class="toggle-ui"></span>
+          <span>Force Track Changes on</span>
+        </label>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">AI instructions</div>
+        <p class="panel-subtitle">Give the model extra guidance for this clause.</p>
+        <textarea id="instructions" rows="4" placeholder="Example: Preserve defined terms. Flag any unilateral obligations. Keep the clause length within 10% of the original."></textarea>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">Generate</div>
+        <p class="panel-subtitle">We apply edits only after you approve.</p>
+        <button class="primary" id="runReview" type="button">
+          <span>Generate redlines</span>
+          <span class="button-meta" id="runMeta">Ready</span>
+        </button>
+        <div class="status" id="status"></div>
+      </section>
+
+      <section class="panel preview">
+        <div class="panel-title">Preview</div>
+        <div class="preview-card">
+          <div class="preview-header">
+            <span>Suggested clause</span>
+            <button class="ghost" id="copySuggestion" type="button">Copy</button>
+          </div>
+          <pre id="suggestedClause" class="preview-text">No suggestions yet.</pre>
+        </div>
+        <div class="preview-card">
+          <div class="preview-header">
+            <span>Comments</span>
+            <span class="pill" id="commentPill">0</span>
+          </div>
+          <ul id="commentList" class="comment-list"></ul>
+        </div>
+        <div class="preview-actions">
+          <button class="secondary" id="applyRedlines" type="button">Apply to Word</button>
+          <button class="ghost" id="discardResult" type="button">Discard</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">Connection</div>
+        <p class="panel-subtitle">Use a secure backend proxy to protect API keys.</p>
+        <label class="field">
+          <span>Review API endpoint</span>
+          <input id="apiEndpoint" type="url" placeholder="https://your-service.example.com/api/review" />
+        </label>
+        <label class="toggle">
+          <input id="rememberEndpoint" type="checkbox" checked />
+          <span class="toggle-ui"></span>
+          <span>Remember endpoint on this device</span>
+        </label>
+      </section>
+
+      <section class="disclaimer">
+        <div class="disclaimer-title">Human review required</div>
+        <p>AI suggestions are advisory. Review all edits before accepting changes.</p>
+      </section>
+    </div>
+
+    <script type="module" src="taskpane.js"></script>
+  </body>
+</html>

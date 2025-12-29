@@ -1,0 +1,12 @@
+{
+  "name": "word-redlining",
+  "version": "0.1.0",
+  "description": "AI-powered Word add-in for contract redlining.",
+  "type": "module",
+  "scripts": {
+    "start:server": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
