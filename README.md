@@ -1,4 +1,4 @@
-# Goosefarm AI Word Add-in
+# Goosefarm Word Add-in
 
 AI-powered contract review for Microsoft Word. The task pane reads the selected clause, sends it to a secure backend, and applies tracked changes plus comments.
 
@@ -99,7 +99,7 @@ Then:
 1. **Quit Word completely** (⌘Q)
 2. **Reopen Word**
 3. Go to **Insert → Add-ins → My Add-ins**
-4. Look under **"Developer Add-ins"** — Goosefarm AI should appear
+4. Look under **"Developer Add-ins"** — Goosefarm should appear
 5. Click it to open the task pane
 
 ## Backend Configuration

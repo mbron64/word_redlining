@@ -8,7 +8,7 @@
   <Version>1.0.0.0</Version>
   <ProviderName>Goosefarm</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Goosefarm AI" />
+  <DisplayName DefaultValue="Goosefarm" />
   <Description DefaultValue="AI-powered contract review and redlining." />
   <IconUrl DefaultValue="https://localhost:3000/taskpane/assets/icon-32.png" />
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/taskpane/assets/icon-80.png" />
@@ -77,14 +77,14 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Goosefarm AI" />
-        <bt:String id="Tab.Label" DefaultValue="Goosefarm AI" />
+        <bt:String id="GetStarted.Title" DefaultValue="Goosefarm" />
+        <bt:String id="Tab.Label" DefaultValue="Goosefarm" />
         <bt:String id="Group.Label" DefaultValue="Review" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Open Goosefarm AI" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Open Goosefarm" />
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="GetStarted.Description" DefaultValue="AI-powered contract review inside Word." />
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Goosefarm AI for contract review." />
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Goosefarm for contract review." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

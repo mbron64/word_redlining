@@ -801,10 +801,10 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
     cert: fs.readFileSync(certPath),
   };
   https.createServer(httpsOptions, app).listen(port, () => {
-    console.log(`Goosefarm AI server running on https://localhost:${port}`);
+    console.log(`Goosefarm server running on https://localhost:${port}`);
   });
 } else {
   app.listen(port, () => {
-    console.log(`Goosefarm AI server running on http://localhost:${port} (no certs found)`);
+    console.log(`Goosefarm server running on http://localhost:${port} (no certs found)`);
   });
 }
