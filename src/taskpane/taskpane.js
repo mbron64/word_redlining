@@ -1,7 +1,7 @@
 import { getScopeText, applyRedlines } from "./services/wordService.js";
 import { reviewClause } from "./services/aiService.js";
 import { sendChatMessage } from "./services/chatService.js";
-import { diffTokens, formatDiff } from "./utils/diff.js";
+import { diffTokens, formatDiff, formatDiffHtml } from "./utils/diff.js";
 import { loadSettings, saveSettings } from "./utils/storage.js";
 
 const state = {
@@ -11,13 +11,17 @@ const state = {
   // Redlining state
   scope: "selection",
   riskProfile: "balanced",
-  granularity: "replace",
   trackChanges: true,
   instructions: "",
   endpoint: "",
   rememberEndpoint: true,
   originalText: "",
   result: null,
+  
+  // Live markup state
+  isAnalyzing: false,
+  issues: [],
+  currentIssueIndex: -1,
   
   // Chat state
   chatMessages: [],
@@ -28,14 +32,10 @@ const state = {
 
 const dom = {
   // Redlining elements
-  selectionLength: document.getElementById("selectionLength"),
-  commentCount: document.getElementById("commentCount"),
-  revisionCount: document.getElementById("revisionCount"),
-  scopeButtons: document.querySelectorAll(".segment"),
+  scopeButtons: document.querySelectorAll(".segment[data-scope]"),
   scopeHint: document.getElementById("scopeHint"),
   refreshSelection: document.getElementById("refreshSelection"),
   riskProfile: document.getElementById("riskProfile"),
-  granularity: document.getElementById("granularity"),
   trackChanges: document.getElementById("trackChanges"),
   instructions: document.getElementById("instructions"),
   runReview: document.getElementById("runReview"),
@@ -78,14 +78,12 @@ function setStatus(message, tone = "neutral") {
 }
 
 function setRunMeta(message) {
-  dom.runMeta.textContent = message;
+  if (dom.runMeta) {
+    dom.runMeta.textContent = message;
+  }
 }
 
-function updateMetrics({ wordCount = 0, commentCount = 0, revisionCount = 0 }) {
-  dom.selectionLength.textContent = wordCount;
-  dom.commentCount.textContent = commentCount;
-  dom.revisionCount.textContent = revisionCount;
-}
+// Metrics display removed - now showing issues-focused results instead
 
 function setScope(scope) {
   state.scope = scope;
@@ -120,30 +118,21 @@ function renderPreview() {
     dom.suggestedClause.textContent = "No suggestions yet.";
     dom.commentPill.textContent = "0";
     dom.commentList.innerHTML = "";
-    updateMetrics({ wordCount: 0, commentCount: 0, revisionCount: 0 });
     return;
   }
 
   const { revisedText, comments } = state.result;
-  let previewText = revisedText || "No revisions suggested.";
-  let revisionCount = 0;
 
-  if (state.granularity === "diff" && state.originalText) {
+  // Always show diff with red/green highlighting
+  if (state.originalText && revisedText) {
     const diff = diffTokens(state.originalText, revisedText);
-    previewText = formatDiff(diff);
-    if (diff) {
-      revisionCount = diff.filter((segment) => segment.type !== "equal").length;
-    }
+    const diffHtml = formatDiffHtml(diff);
+    dom.suggestedClause.innerHTML = diffHtml;
+  } else {
+    dom.suggestedClause.textContent = revisedText || "No revisions suggested.";
   }
-
-  dom.suggestedClause.textContent = previewText;
   dom.commentPill.textContent = comments.length.toString();
   renderComments(comments);
-  updateMetrics({
-    wordCount: countWords(state.originalText),
-    commentCount: comments.length,
-    revisionCount,
-  });
 }
 
 function countWords(text) {
@@ -156,7 +145,6 @@ async function refreshSelection() {
   try {
     const { text, wordCount } = await getScopeText(state.scope);
     state.originalText = text;
-    updateMetrics({ wordCount, commentCount: 0, revisionCount: 0 });
     setStatus(wordCount ? "Selection ready." : "No text found in scope.");
   } catch (error) {
     setStatus(`Unable to read from Word. ${error.message}`, "error");
@@ -215,11 +203,7 @@ async function handleApply() {
       trackChanges: state.trackChanges,
     });
 
-    const note = state.granularity === "diff"
-      ? "Applied clause replacement with Track Changes."
-      : "Applied tracked changes and comments.";
-
-    setStatus(note);
+    setStatus("Applied changes to document.");
   } catch (error) {
     setStatus(`Failed to apply changes. ${error.message}`, "error");
   }
@@ -242,6 +226,356 @@ async function handleCopy() {
     setStatus("Copied suggestion to clipboard.");
   } catch (error) {
     setStatus("Clipboard unavailable.", "warning");
+  }
+}
+
+// ========================================
+// Live Document Markup Functions
+// ========================================
+
+async function enableTrackChanges() {
+  return Word.run(async (context) => {
+    context.document.changeTrackingMode = Word.ChangeTrackingMode.trackAll;
+    await context.sync();
+  });
+}
+
+async function disableTrackChanges() {
+  return Word.run(async (context) => {
+    context.document.changeTrackingMode = Word.ChangeTrackingMode.off;
+    await context.sync();
+  });
+}
+
+async function findAndReplaceText(originalText, newText) {
+  return Word.run(async (context) => {
+    const body = context.document.body;
+    const searchResults = body.search(originalText, { matchCase: false, matchWholeWord: false });
+    searchResults.load("items");
+    await context.sync();
+
+    if (searchResults.items.length > 0) {
+      // Replace the first occurrence
+      searchResults.items[0].insertText(newText, Word.InsertLocation.replace);
+      await context.sync();
+      return true;
+    }
+    return false;
+  });
+}
+
+async function addCommentToText(targetText, commentText) {
+  return Word.run(async (context) => {
+    const body = context.document.body;
+    const searchResults = body.search(targetText, { matchCase: false, matchWholeWord: false });
+    searchResults.load("items");
+    await context.sync();
+
+    if (searchResults.items.length > 0) {
+      // Add comment to the first occurrence
+      searchResults.items[0].insertComment(commentText);
+      await context.sync();
+      return true;
+    }
+    return false;
+  });
+}
+
+async function selectTextInDocument(targetText) {
+  return Word.run(async (context) => {
+    const body = context.document.body;
+    const searchResults = body.search(targetText, { matchCase: false, matchWholeWord: false });
+    searchResults.load("items");
+    await context.sync();
+
+    if (searchResults.items.length > 0) {
+      searchResults.items[0].select();
+      await context.sync();
+      return true;
+    }
+    return false;
+  });
+}
+
+function renderIssuesList() {
+  const container = document.getElementById("issuesList");
+  if (!container) return;
+
+  if (state.issues.length === 0) {
+    container.innerHTML = `
+      <div class="issues-empty">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+        <p>No issues found yet</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = state.issues.map((issue, index) => {
+    const isEdit = issue.type === "edit";
+    const severityClass = issue.severity || "medium";
+    const statusClass = issue.applied ? "applied" : "";
+    
+    return `
+      <div class="issue-card ${statusClass}" data-index="${index}">
+        <div class="issue-header">
+          <span class="issue-type ${isEdit ? 'edit' : 'comment'}">
+            ${isEdit ? `
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+              </svg>
+              Edit
+            ` : `
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+              </svg>
+              Comment
+            `}
+          </span>
+          <span class="issue-severity ${severityClass}">${severityClass}</span>
+        </div>
+        <div class="issue-text">${escapeHtml(truncateText(issue.originalText, 80))}</div>
+        <div class="issue-explanation">${escapeHtml(issue.explanation)}</div>
+        ${issue.applied ? '<div class="issue-status">✓ Applied</div>' : ''}
+      </div>
+    `;
+  }).join("");
+
+  // Add click handlers
+  container.querySelectorAll(".issue-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const index = parseInt(card.dataset.index, 10);
+      handleIssueClick(index);
+    });
+  });
+}
+
+function truncateText(text, maxLength) {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+}
+
+async function handleIssueClick(index) {
+  const issue = state.issues[index];
+  if (!issue) return;
+
+  state.currentIssueIndex = index;
+  
+  // Highlight the card
+  document.querySelectorAll(".issue-card").forEach((card, i) => {
+    card.classList.toggle("is-selected", i === index);
+  });
+
+  // Select the text in Word
+  try {
+    await selectTextInDocument(issue.originalText);
+  } catch (error) {
+    console.warn("Could not select text:", error);
+  }
+}
+
+async function applyIssueToDocument(issue) {
+  try {
+    if (issue.type === "edit" && issue.newText) {
+      // Apply text replacement with track changes
+      const success = await findAndReplaceText(issue.originalText, issue.newText);
+      if (success) {
+        // Also add a comment with the explanation
+        await addCommentToText(issue.newText, issue.explanation);
+      }
+      return success;
+    } else if (issue.type === "comment") {
+      // Just add a comment
+      return await addCommentToText(issue.originalText, issue.explanation);
+    }
+    return false;
+  } catch (error) {
+    console.error("Error applying issue:", error);
+    return false;
+  }
+}
+
+function updateAnalysisProgress(current, total) {
+  const progressEl = document.getElementById("analysisProgress");
+  if (progressEl) {
+    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    progressEl.innerHTML = `
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${percent}%"></div>
+      </div>
+      <span class="progress-text">Analyzing... ${current}/${total} issues found</span>
+    `;
+  }
+}
+
+function showAnalysisStart() {
+  const container = document.getElementById("issuesList");
+  if (container) {
+    container.innerHTML = `
+      <div class="analysis-loading">
+        <div class="thinking-shimmer">Analyzing contract...</div>
+      </div>
+    `;
+  }
+  
+  const progressEl = document.getElementById("analysisProgress");
+  if (progressEl) {
+    progressEl.innerHTML = `
+      <div class="progress-bar">
+        <div class="progress-fill progress-indeterminate"></div>
+      </div>
+      <span class="progress-text">Starting analysis...</span>
+    `;
+    progressEl.classList.remove("is-hidden");
+  }
+}
+
+function showAnalysisComplete(totalIssues) {
+  const progressEl = document.getElementById("analysisProgress");
+  if (progressEl) {
+    progressEl.innerHTML = `
+      <div class="progress-summary">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+        <span>${totalIssues} issue${totalIssues !== 1 ? 's' : ''} found and applied</span>
+      </div>
+    `;
+  }
+}
+
+async function handleLiveAnalysis() {
+  if (state.isAnalyzing) return;
+
+  // Get document text based on scope
+  const { text } = await getScopeText(state.scope);
+  if (!text || !text.trim()) {
+    setStatus("No text to analyze. Select text or choose a different scope.", "warning");
+    return;
+  }
+
+  state.isAnalyzing = true;
+  state.issues = [];
+  state.currentIssueIndex = -1;
+  
+  // Update button state
+  const analyzeBtn = document.getElementById("runReview");
+  if (analyzeBtn) {
+    analyzeBtn.disabled = true;
+    analyzeBtn.innerHTML = `
+      <div class="spinner"></div>
+      <span>Analyzing...</span>
+    `;
+  }
+
+  showAnalysisStart();
+
+  // Enable track changes if setting is on
+  if (state.trackChanges) {
+    try {
+      await enableTrackChanges();
+    } catch (error) {
+      console.warn("Could not enable track changes:", error);
+    }
+  }
+
+  // Create streaming request
+  const streamEndpoint = state.endpoint.replace("/api/review", "/api/review-stream");
+  
+  try {
+    // Use fetch with ReadableStream for POST request
+    const response = await fetch(streamEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        instructions: state.instructions,
+        riskProfile: state.riskProfile,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      
+      // Process complete SSE events
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          try {
+            const event = JSON.parse(data);
+            await handleStreamEvent(event);
+          } catch (e) {
+            console.warn("Could not parse SSE event:", data);
+          }
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error("Streaming error:", error);
+    setStatus(`Analysis failed: ${error.message}`, "error");
+  } finally {
+    state.isAnalyzing = false;
+    
+    // Reset button
+    if (analyzeBtn) {
+      analyzeBtn.disabled = false;
+      analyzeBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="btn-icon-left">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+        </svg>
+        <span>Analyze Contract</span>
+      `;
+    }
+  }
+}
+
+async function handleStreamEvent(event) {
+  switch (event.type) {
+    case "start":
+      setStatus("Analysis started...", "info");
+      break;
+
+    case "issue":
+      const issue = event.issue;
+      state.issues.push(issue);
+      
+      // Update progress
+      updateAnalysisProgress(issue.index + 1, issue.total);
+      
+      // Apply the issue to the document immediately
+      const applied = await applyIssueToDocument(issue);
+      issue.applied = applied;
+      
+      // Re-render the issues list
+      renderIssuesList();
+      break;
+
+    case "complete":
+      showAnalysisComplete(event.totalIssues);
+      setStatus(`Analysis complete. ${event.totalIssues} issue${event.totalIssues !== 1 ? 's' : ''} found.`, "success");
+      break;
+
+    case "error":
+      setStatus(event.message || "Analysis failed.", "error");
+      break;
   }
 }
 
@@ -491,11 +825,7 @@ function addTypingIndicator() {
   typingEl.className = "chat-message assistant";
   typingEl.id = "typingIndicator";
   typingEl.innerHTML = `
-    <div class="typing-indicator">
-      <span></span>
-      <span></span>
-      <span></span>
-    </div>
+    <div class="thinking-shimmer">Thinking...</div>
   `;
   dom.chatMessages.appendChild(typingEl);
   dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight;
@@ -630,17 +960,13 @@ function bindEvents() {
   dom.riskProfile.addEventListener("change", (event) => {
     state.riskProfile = event.target.value;
   });
-  dom.granularity.addEventListener("change", (event) => {
-    state.granularity = event.target.value;
-    renderPreview();
-  });
   dom.trackChanges.addEventListener("change", (event) => {
     state.trackChanges = event.target.checked;
   });
   dom.instructions.addEventListener("input", (event) => {
     state.instructions = event.target.value;
   });
-  dom.runReview.addEventListener("click", handleReview);
+  dom.runReview.addEventListener("click", handleLiveAnalysis);
   dom.applyRedlines.addEventListener("click", handleApply);
   dom.discardResult.addEventListener("click", handleDiscard);
   dom.copySuggestion.addEventListener("click", handleCopy);

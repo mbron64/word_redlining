@@ -97,3 +97,28 @@ export function formatDiff(segments) {
     })
     .join("");
 }
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+export function formatDiffHtml(segments) {
+  if (!segments) {
+    return "<em>Diff preview skipped (selection too large).</em>";
+  }
+
+  return segments
+    .map((segment) => {
+      const escaped = escapeHtml(segment.text);
+      if (segment.type === "equal") {
+        return escaped;
+      }
+      if (segment.type === "delete") {
+        return `<span class="diff-delete">${escaped}</span>`;
+      }
+      return `<span class="diff-insert">${escaped}</span>`;
+    })
+    .join("");
+}

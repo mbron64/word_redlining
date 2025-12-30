@@ -24,6 +24,25 @@
         </button>
       </header>
 
+      <!-- Settings Panel (hidden by default) -->
+      <section class="card settings-panel" id="settingsPanel">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Settings</div>
+            <div class="card-subtitle">API configuration</div>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">API Endpoint</span>
+          <input id="apiEndpoint" type="url" value="https://localhost:8787/api/review" placeholder="https://your-service.example.com/api/review" />
+        </div>
+        <label class="toggle">
+          <input id="rememberEndpoint" type="checkbox" checked />
+          <span class="toggle-track"></span>
+          <span class="toggle-label">Remember endpoint</span>
+        </label>
+      </section>
+
       <!-- Mode Toggle -->
       <div class="mode-toggle">
         <button class="mode-btn is-active" data-mode="chat" type="button">
@@ -42,131 +61,87 @@
 
       <!-- Redlining View -->
       <div id="redliningView" class="view is-hidden">
-      <!-- Stats -->
-      <div class="stats-row">
-        <div class="stat-card">
-          <span class="stat-value" id="selectionLength">0</span>
-          <span class="stat-label">Words</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value" id="commentCount">0</span>
-          <span class="stat-label">Comments</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value" id="revisionCount">0</span>
-          <span class="stat-label">Revisions</span>
-        </div>
-      </div>
-
-      <!-- Scope Selection -->
+      
+      <!-- Scope & Settings - Compact -->
       <section class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Scope</div>
-            <div class="card-subtitle">Select text to analyze</div>
+        <div class="redline-setup">
+          <div class="setup-row">
+            <div class="setup-group">
+              <span class="setup-label">Scope</span>
+              <div class="segmented segmented-sm" role="group" aria-label="Review scope">
+                <button class="segment is-active" data-scope="selection" type="button">Selection</button>
+                <button class="segment" data-scope="paragraph" type="button">Paragraph</button>
+                <button class="segment" data-scope="document" type="button">Document</button>
+              </div>
+            </div>
+            <div class="setup-group">
+              <span class="setup-label">Risk Posture</span>
+              <select id="riskProfile" class="select-sm">
+                <option value="balanced">Balanced</option>
+                <option value="cautious">Risk-averse</option>
+                <option value="aggressive">Aggressive</option>
+              </select>
+            </div>
           </div>
-        </div>
-        <div class="segmented" role="group" aria-label="Review scope">
-          <button class="segment is-active" data-scope="selection" type="button">Selection</button>
-          <button class="segment" data-scope="paragraph" type="button">Paragraph</button>
-          <button class="segment" data-scope="document" type="button">Document</button>
-        </div>
-        <div class="hint-row">
-          <span class="hint-text" id="scopeHint">Highlight a clause for best results</span>
-          <button class="link-btn" id="refreshSelection" type="button">Refresh</button>
+          <div class="hint-row">
+            <span class="hint-text" id="scopeHint">Highlight text in Word to analyze</span>
+            <button class="link-btn" id="refreshSelection" type="button">Refresh</button>
+          </div>
         </div>
       </section>
 
-      <!-- Review Style -->
+      <!-- Instructions + Analyze -->
       <section class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Review Style</div>
-            <div class="card-subtitle">Configure tone and approach</div>
-          </div>
-        </div>
-        <div class="form-grid">
-          <label class="field">
-            <span class="field-label">Risk Posture</span>
-            <select id="riskProfile">
-              <option value="balanced">Balanced counsel</option>
-              <option value="cautious">Risk-averse</option>
-              <option value="aggressive">Aggressive negotiation</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field-label">Granularity</span>
-            <select id="granularity">
-              <option value="replace">Replace clause</option>
-              <option value="diff">Word-level diff</option>
-            </select>
-          </label>
-        </div>
-        <label class="toggle">
-          <input id="trackChanges" type="checkbox" checked />
-          <span class="toggle-track"></span>
-          <span class="toggle-label">Enable Track Changes</span>
-        </label>
-      </section>
-
-      <!-- Instructions -->
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Instructions</div>
-            <div class="card-subtitle">Custom guidance for the AI</div>
-          </div>
-        </div>
         <div class="field">
-          <textarea id="instructions" rows="3" placeholder="E.g., Preserve defined terms. Flag unilateral obligations. Keep clause length within 10% of original."></textarea>
+          <textarea id="instructions" rows="2" placeholder="Optional: Add specific instructions (e.g., protect IP rights, limit liability exposure, ensure GDPR compliance)"></textarea>
         </div>
-      </section>
-
-      <!-- Generate -->
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Generate</div>
-            <div class="card-subtitle">Review before applying changes</div>
-          </div>
+        <div class="generate-row">
+          <label class="toggle toggle-sm">
+            <input id="trackChanges" type="checkbox" checked />
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Track Changes</span>
+          </label>
+          <button class="btn btn-primary btn-analyze" id="runReview" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="btn-icon-left">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+            </svg>
+            <span>Analyze Contract</span>
+          </button>
         </div>
-        <button class="btn btn-primary" id="runReview" type="button">
-          <span>Generate Redlines</span>
-          <span class="btn-meta" id="runMeta">Ready</span>
-        </button>
         <div class="status" id="status"></div>
       </section>
 
-      <!-- Preview -->
-      <section class="card preview-section">
+      <!-- Analysis Progress -->
+      <div id="analysisProgress" class="analysis-progress is-hidden"></div>
+
+      <!-- Issues List -->
+      <section class="card issues-section">
         <div class="card-header">
-          <div class="card-title">Preview</div>
-          <span class="card-badge">AI Generated</span>
-        </div>
-        
-        <div class="preview-card">
-          <div class="preview-header">
-            <span class="preview-label">Suggested Clause</span>
-            <button class="btn btn-ghost" id="copySuggestion" type="button" style="padding: 6px 10px; font-size: 11px;">Copy</button>
+          <div>
+            <div class="card-title">Issues Found</div>
+            <div class="card-subtitle">Click any issue to jump to it in the document</div>
           </div>
-          <pre id="suggestedClause" class="preview-content">No suggestions yet.</pre>
         </div>
-
-        <div class="preview-card">
-          <div class="preview-header">
-            <span class="preview-label">Comments</span>
-            <span class="preview-count" id="commentPill">0</span>
+        <div id="issuesList" class="issues-list">
+          <div class="issues-empty">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <p>Click "Analyze Contract" to find issues</p>
+            <span>Issues will be marked directly in your document</span>
           </div>
-          <ul id="commentList" class="comment-list">
-            <li class="comment-item"></li>
-          </ul>
-        </div>
-
-        <div class="preview-actions">
-          <button class="btn btn-secondary" id="applyRedlines" type="button">Apply to Document</button>
-          <button class="btn btn-ghost" id="discardResult" type="button">Discard</button>
         </div>
       </section>
+      
+      <!-- Hidden elements for legacy compatibility -->
+      <div style="display: none;">
+        <pre id="suggestedClause"></pre>
+        <ul id="commentList"></ul>
+        <span id="commentPill">0</span>
+        <button id="copySuggestion"></button>
+        <button id="applyRedlines"></button>
+        <button id="discardResult"></button>
+      </div>
       </div>
 
       <!-- Chat View -->
@@ -242,25 +217,6 @@
           </button>
         </div>
       </div>
-
-      <!-- Settings Panel (hidden by default) -->
-      <section class="card settings-panel" id="settingsPanel">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Settings</div>
-            <div class="card-subtitle">API configuration</div>
-          </div>
-        </div>
-        <div class="field">
-          <span class="field-label">API Endpoint</span>
-          <input id="apiEndpoint" type="url" value="https://localhost:8787/api/review" placeholder="https://your-service.example.com/api/review" />
-        </div>
-        <label class="toggle">
-          <input id="rememberEndpoint" type="checkbox" checked />
-          <span class="toggle-track"></span>
-          <span class="toggle-label">Remember endpoint</span>
-        </label>
-      </section>
 
       <!-- Disclaimer -->
       <footer class="disclaimer">

@@ -12,7 +12,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
     return;
@@ -342,6 +342,231 @@ app.post("/api/chat", async (req, res) => {
     console.error("[/api/chat] Error:", error.message);
     res.status(500).json({ error: error.message || "Chat request failed." });
   }
+});
+
+// ========================================
+// Live Document Markup - SSE Streaming
+// ========================================
+
+function buildStreamingReviewMessages({ text, instructions, riskProfile }) {
+  const postureMap = {
+    balanced: "Balanced counsel: pragmatic, neutral tone.",
+    cautious: "Risk-averse counsel: highlight risks and tighten protections.",
+    aggressive: "Aggressive negotiation: push for stronger protections.",
+  };
+
+  const posture = postureMap[riskProfile] || postureMap.balanced;
+
+  return [
+    {
+      role: "system",
+      content: [
+        "You are a senior contract review assistant that analyzes contracts clause by clause.",
+        posture,
+        "",
+        "CRITICAL: You must respond with a JSON array of issues found in the contract.",
+        "Each issue should be a separate object in the array.",
+        "",
+        "Issue types:",
+        "- 'edit': A suggested change to the contract text",
+        "- 'comment': A note or risk flag without changing text",
+        "",
+        "JSON schema (array of issues):",
+        "[",
+        "  {",
+        '    "type": "edit" | "comment",',
+        '    "originalText": "exact text from contract to find/change",',
+        '    "newText": "replacement text (only for edit type)",',
+        '    "explanation": "brief explanation of why this change/comment is needed",',
+        '    "severity": "low" | "medium" | "high"',
+        "  }",
+        "]",
+        "",
+        "Rules:",
+        "- originalText must be an EXACT substring from the input contract",
+        "- For edits, provide the revised text in newText",
+        "- For comments, omit newText and just provide explanation",
+        "- Keep explanations concise (1-2 sentences)",
+        "- Order issues by their appearance in the document",
+        "- If no issues found, return empty array []",
+        "- Return ONLY valid JSON array, no other text",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        "Analyze this contract and identify all issues, suggested edits, and risk flags:",
+        "",
+        "---CONTRACT START---",
+        text,
+        "---CONTRACT END---",
+        "",
+        instructions ? `Additional guidance: ${instructions}` : "",
+        "",
+        "Return a JSON array of issues found.",
+      ].filter(Boolean).join("\n"),
+    },
+  ];
+}
+
+async function callOpenAIForIssues({ messages }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages,
+      temperature: 0.2,
+      max_tokens: 4000,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "OpenAI request failed.");
+  }
+
+  const payload = await response.json();
+  const content = payload?.choices?.[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error("No response from AI.");
+  }
+
+  // Parse the JSON response
+  try {
+    const parsed = JSON.parse(content);
+    // Handle both array and object with issues property
+    if (Array.isArray(parsed)) {
+      return parsed;
+    } else if (parsed.issues && Array.isArray(parsed.issues)) {
+      return parsed.issues;
+    } else {
+      return [];
+    }
+  } catch (e) {
+    // Try to extract array from response
+    const match = content.match(/\[[\s\S]*\]/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw new Error("Could not parse AI response as JSON array.");
+  }
+}
+
+app.get("/api/review-stream", async (req, res) => {
+  // Set SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.flushHeaders();
+
+  // Get parameters from query string
+  const text = req.query.text;
+  const instructions = req.query.instructions || "";
+  const riskProfile = req.query.riskProfile || "balanced";
+
+  if (!text) {
+    res.write(`data: ${JSON.stringify({ type: "error", message: "Missing contract text." })}\n\n`);
+    res.end();
+    return;
+  }
+
+  // Send start event
+  res.write(`data: ${JSON.stringify({ type: "start", message: "Starting analysis..." })}\n\n`);
+
+  try {
+    const messages = buildStreamingReviewMessages({ 
+      text: decodeURIComponent(text), 
+      instructions: decodeURIComponent(instructions), 
+      riskProfile 
+    });
+
+    // Get all issues from AI
+    const issues = await callOpenAIForIssues({ messages });
+
+    // Stream each issue as a separate event
+    for (let i = 0; i < issues.length; i++) {
+      const issue = issues[i];
+      issue.index = i;
+      issue.total = issues.length;
+      
+      // Send issue event
+      res.write(`data: ${JSON.stringify({ type: "issue", issue })}\n\n`);
+      
+      // Small delay to allow UI to process and show progress
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // Send completion event
+    res.write(`data: ${JSON.stringify({ type: "complete", totalIssues: issues.length })}\n\n`);
+    
+  } catch (error) {
+    console.error("[/api/review-stream] Error:", error.message);
+    res.write(`data: ${JSON.stringify({ type: "error", message: error.message || "Analysis failed." })}\n\n`);
+  }
+
+  res.end();
+});
+
+// POST version for larger documents (body can be bigger than URL)
+app.post("/api/review-stream", async (req, res) => {
+  // Set SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.flushHeaders();
+
+  const { text, instructions, riskProfile } = req.body || {};
+
+  if (!text || typeof text !== "string") {
+    res.write(`data: ${JSON.stringify({ type: "error", message: "Missing contract text." })}\n\n`);
+    res.end();
+    return;
+  }
+
+  // Send start event
+  res.write(`data: ${JSON.stringify({ type: "start", message: "Starting analysis..." })}\n\n`);
+
+  try {
+    const messages = buildStreamingReviewMessages({ text, instructions, riskProfile });
+
+    // Get all issues from AI
+    const issues = await callOpenAIForIssues({ messages });
+
+    // Stream each issue as a separate event
+    for (let i = 0; i < issues.length; i++) {
+      const issue = issues[i];
+      issue.index = i;
+      issue.total = issues.length;
+      
+      // Send issue event
+      res.write(`data: ${JSON.stringify({ type: "issue", issue })}\n\n`);
+      
+      // Small delay to allow UI to process and show progress
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // Send completion event
+    res.write(`data: ${JSON.stringify({ type: "complete", totalIssues: issues.length })}\n\n`);
+    
+  } catch (error) {
+    console.error("[/api/review-stream] Error:", error.message);
+    res.write(`data: ${JSON.stringify({ type: "error", message: error.message || "Analysis failed." })}\n\n`);
+  }
+
+  res.end();
 });
 
 const port = process.env.PORT || 8787;
