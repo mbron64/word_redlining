@@ -192,9 +192,28 @@ Then quit and restart Word.
 - Check that `manifest.xml` is in `~/Library/Containers/com.microsoft.Word/Data/Documents/wef/`
 - Fully quit Word (⌘Q) and reopen
 
-### Icons not displaying
-- Make sure the server has caching enabled (`-c3600` flag)
-- Icons must be served with `Cache-Control: max-age=...` headers (not `no-cache`)
+### Icon showing as generic green/teal square
+
+Word caches add-in icons in multiple locations. If your custom icon isn't showing (stuck on a generic square), clear ALL Office caches:
+
+```bash
+# Clear all Office add-in caches
+rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Caches/WebKit/*
+rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Caches/Microsoft/*
+rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Application\ Support/Microsoft/Office/16.0/Wef/*
+rm -rf ~/Library/Group\ Containers/UBF8T346G9.Office/User\ Content/wef/*
+rm -rf ~/Library/Containers/com.microsoft.Word/Data/tmp/wefgallery/*
+
+# Re-copy manifest to both wef locations
+cp manifest.xml ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
+cp manifest.xml ~/Library/Group\ Containers/UBF8T346G9.Office/User\ Content/wef/
+```
+
+Then **fully quit Word (⌘Q)** and reopen. The key cache is `Office/16.0/Wef/` which stores add-in manifests and resources.
+
+### Icons not displaying at all
+- Make sure the HTTPS server is running on port 3000
+- Icons must be accessible at the URLs in `manifest.xml` (test with `curl -sk https://localhost:3000/taskpane/assets/icon-32.png`)
 
 ## Project Structure
 
