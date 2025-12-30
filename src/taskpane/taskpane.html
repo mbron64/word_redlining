@@ -3,52 +3,91 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Redline AI</title>
+    <title>Goosefarm AI</title>
     <link rel="stylesheet" href="taskpane.css" />
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   </head>
   <body>
     <div class="app">
-      <header class="hero">
-        <div class="hero-badge">Word Add-in</div>
-        <h1>Redline AI</h1>
-        <p>Contextual contract edits with tracked changes and smart margin notes.</p>
-        <div class="hero-metrics">
-          <div>
-            <span class="metric-value" id="selectionLength">0</span>
-            <span class="metric-label">Selected words</span>
-          </div>
-          <div>
-            <span class="metric-value" id="commentCount">0</span>
-            <span class="metric-label">AI comments</span>
-          </div>
-          <div>
-            <span class="metric-value" id="revisionCount">0</span>
-            <span class="metric-label">Revisions</span>
-          </div>
+      <!-- Header -->
+      <header class="header">
+        <img src="assets/logo.png" alt="Goosefarm" class="header-logo" />
+        <div class="header-content">
+          <h1>Goosefarm AI</h1>
+          <p>AI-powered contract review</p>
         </div>
+        <button class="settings-btn" id="settingsToggle" type="button" title="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          </svg>
+        </button>
       </header>
 
-      <section class="panel">
-        <div class="panel-title">Scope</div>
-        <p class="panel-subtitle">Choose the text you want the model to analyze.</p>
+      <!-- Mode Toggle -->
+      <div class="mode-toggle">
+        <button class="mode-btn is-active" data-mode="chat" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+          </svg>
+          Chat
+        </button>
+        <button class="mode-btn" data-mode="redlining" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+          </svg>
+          Redlining
+        </button>
+      </div>
+
+      <!-- Redlining View -->
+      <div id="redliningView" class="view is-hidden">
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <span class="stat-value" id="selectionLength">0</span>
+          <span class="stat-label">Words</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="commentCount">0</span>
+          <span class="stat-label">Comments</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="revisionCount">0</span>
+          <span class="stat-label">Revisions</span>
+        </div>
+      </div>
+
+      <!-- Scope Selection -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Scope</div>
+            <div class="card-subtitle">Select text to analyze</div>
+          </div>
+        </div>
         <div class="segmented" role="group" aria-label="Review scope">
           <button class="segment is-active" data-scope="selection" type="button">Selection</button>
-          <button class="segment" data-scope="paragraph" type="button">Current paragraph</button>
-          <button class="segment" data-scope="document" type="button">Entire document</button>
+          <button class="segment" data-scope="paragraph" type="button">Paragraph</button>
+          <button class="segment" data-scope="document" type="button">Document</button>
         </div>
         <div class="hint-row">
-          <span id="scopeHint">Tip: Highlight a clause for best results.</span>
-          <button class="link-button" id="refreshSelection" type="button">Refresh selection</button>
+          <span class="hint-text" id="scopeHint">Highlight a clause for best results</span>
+          <button class="link-btn" id="refreshSelection" type="button">Refresh</button>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-title">Review style</div>
-        <p class="panel-subtitle">Tune the tone and risk appetite.</p>
-        <div class="grid">
+      <!-- Review Style -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Review Style</div>
+            <div class="card-subtitle">Configure tone and approach</div>
+          </div>
+        </div>
+        <div class="form-grid">
           <label class="field">
-            <span>Risk posture</span>
+            <span class="field-label">Risk Posture</span>
             <select id="riskProfile">
               <option value="balanced">Balanced counsel</option>
               <option value="cautious">Risk-averse</option>
@@ -56,76 +95,183 @@
             </select>
           </label>
           <label class="field">
-            <span>Granularity</span>
+            <span class="field-label">Granularity</span>
             <select id="granularity">
               <option value="replace">Replace clause</option>
-              <option value="diff">Word-level diff (preview)</option>
+              <option value="diff">Word-level diff</option>
             </select>
           </label>
         </div>
         <label class="toggle">
           <input id="trackChanges" type="checkbox" checked />
-          <span class="toggle-ui"></span>
-          <span>Force Track Changes on</span>
+          <span class="toggle-track"></span>
+          <span class="toggle-label">Enable Track Changes</span>
         </label>
       </section>
 
-      <section class="panel">
-        <div class="panel-title">AI instructions</div>
-        <p class="panel-subtitle">Give the model extra guidance for this clause.</p>
-        <textarea id="instructions" rows="4" placeholder="Example: Preserve defined terms. Flag any unilateral obligations. Keep the clause length within 10% of the original."></textarea>
+      <!-- Instructions -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Instructions</div>
+            <div class="card-subtitle">Custom guidance for the AI</div>
+          </div>
+        </div>
+        <div class="field">
+          <textarea id="instructions" rows="3" placeholder="E.g., Preserve defined terms. Flag unilateral obligations. Keep clause length within 10% of original."></textarea>
+        </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-title">Generate</div>
-        <p class="panel-subtitle">We apply edits only after you approve.</p>
-        <button class="primary" id="runReview" type="button">
-          <span>Generate redlines</span>
-          <span class="button-meta" id="runMeta">Ready</span>
+      <!-- Generate -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Generate</div>
+            <div class="card-subtitle">Review before applying changes</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="runReview" type="button">
+          <span>Generate Redlines</span>
+          <span class="btn-meta" id="runMeta">Ready</span>
         </button>
         <div class="status" id="status"></div>
       </section>
 
-      <section class="panel preview">
-        <div class="panel-title">Preview</div>
+      <!-- Preview -->
+      <section class="card preview-section">
+        <div class="card-header">
+          <div class="card-title">Preview</div>
+          <span class="card-badge">AI Generated</span>
+        </div>
+        
         <div class="preview-card">
           <div class="preview-header">
-            <span>Suggested clause</span>
-            <button class="ghost" id="copySuggestion" type="button">Copy</button>
+            <span class="preview-label">Suggested Clause</span>
+            <button class="btn btn-ghost" id="copySuggestion" type="button" style="padding: 6px 10px; font-size: 11px;">Copy</button>
           </div>
-          <pre id="suggestedClause" class="preview-text">No suggestions yet.</pre>
+          <pre id="suggestedClause" class="preview-content">No suggestions yet.</pre>
         </div>
+
         <div class="preview-card">
           <div class="preview-header">
-            <span>Comments</span>
-            <span class="pill" id="commentPill">0</span>
+            <span class="preview-label">Comments</span>
+            <span class="preview-count" id="commentPill">0</span>
           </div>
-          <ul id="commentList" class="comment-list"></ul>
+          <ul id="commentList" class="comment-list">
+            <li class="comment-item"></li>
+          </ul>
         </div>
+
         <div class="preview-actions">
-          <button class="secondary" id="applyRedlines" type="button">Apply to Word</button>
-          <button class="ghost" id="discardResult" type="button">Discard</button>
+          <button class="btn btn-secondary" id="applyRedlines" type="button">Apply to Document</button>
+          <button class="btn btn-ghost" id="discardResult" type="button">Discard</button>
         </div>
       </section>
+      </div>
 
-      <section class="panel">
-        <div class="panel-title">Connection</div>
-        <p class="panel-subtitle">Use a secure backend proxy to protect API keys.</p>
-        <label class="field">
-          <span>Review API endpoint</span>
-          <input id="apiEndpoint" type="url" placeholder="https://your-service.example.com/api/review" />
-        </label>
+      <!-- Chat View -->
+      <div id="chatView" class="view">
+        <!-- Selection Focus -->
+        <div class="chat-context" id="chatContext">
+          <div class="context-header">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+            <div class="context-labels">
+              <span class="context-label">Selection focus</span>
+              <span class="context-subtitle">Highlight text in Word to focus</span>
+            </div>
+            <button class="context-refresh" id="refreshContext" type="button" title="Refresh selection">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+            </button>
+          </div>
+          <div class="context-preview" id="contextPreview">No text selected</div>
+        </div>
+
+        <!-- Chat Container (Messages + Input) -->
+        <div class="chat-container">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-welcome">
+              <div class="welcome-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                </svg>
+              </div>
+              <h3>Chat with your contract</h3>
+              <p>Ask questions about the selected text, request explanations, or get suggestions for revisions.</p>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <textarea id="chatInput" class="chat-input" placeholder="Ask about the selected clause..." rows="1"></textarea>
+            <button class="chat-send-btn" id="sendChat" type="button" title="Send message">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Prompts -->
+        <div class="quick-prompts">
+          <button class="quick-prompt-btn" data-prompt="explain" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+            </svg>
+            Explain this
+          </button>
+          <button class="quick-prompt-btn" data-prompt="risks" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            What are the risks?
+          </button>
+          <button class="quick-prompt-btn" data-prompt="suggest" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+            </svg>
+            Suggest changes
+          </button>
+          <button class="quick-prompt-btn" data-prompt="compare" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+            </svg>
+            Compare versions
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings Panel (hidden by default) -->
+      <section class="card settings-panel" id="settingsPanel">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Settings</div>
+            <div class="card-subtitle">API configuration</div>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">API Endpoint</span>
+          <input id="apiEndpoint" type="url" value="https://localhost:8787/api/review" placeholder="https://your-service.example.com/api/review" />
+        </div>
         <label class="toggle">
           <input id="rememberEndpoint" type="checkbox" checked />
-          <span class="toggle-ui"></span>
-          <span>Remember endpoint on this device</span>
+          <span class="toggle-track"></span>
+          <span class="toggle-label">Remember endpoint</span>
         </label>
       </section>
 
-      <section class="disclaimer">
-        <div class="disclaimer-title">Human review required</div>
-        <p>AI suggestions are advisory. Review all edits before accepting changes.</p>
-      </section>
+      <!-- Disclaimer -->
+      <footer class="disclaimer">
+        <div class="disclaimer-title">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+          </svg>
+          Human Review Required
+        </div>
+        <p>AI suggestions are advisory only. Always review all edits before accepting changes to your document.</p>
+      </footer>
     </div>
 
     <script type="module" src="taskpane.js"></script>

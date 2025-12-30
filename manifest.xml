@@ -6,10 +6,10 @@
   xsi:type="TaskPaneApp">
   <Id>7a3e3b7b-67b0-45b3-b66d-3f6b2d8d7a10</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Word Redlining Labs</ProviderName>
+  <ProviderName>Goosefarm</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Redline AI" />
-  <Description DefaultValue="AI-powered contract redlining and comments." />
+  <DisplayName DefaultValue="Goosefarm AI" />
+  <Description DefaultValue="AI-powered contract review and redlining." />
   <IconUrl DefaultValue="https://localhost:3000/taskpane/assets/icon-32.png" />
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/taskpane/assets/icon-80.png" />
   <SupportUrl DefaultValue="https://localhost:3000" />
@@ -34,11 +34,15 @@
           </GetStarted>
           <FunctionFile resid="Commands.Url" />
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
-            <CustomTab id="RedlineAi.Tab">
-              <Label resid="Tab.Label" />
-              <Group id="RedlineAi.Group">
+            <CustomTab id="Goosefarm.Tab">
+              <Group id="Goosefarm.Group">
                 <Label resid="Group.Label" />
-                <Control xsi:type="Button" id="RedlineAi.TaskpaneButton">
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+                <Control xsi:type="Button" id="Goosefarm.TaskpaneButton">
                   <Label resid="TaskpaneButton.Label" />
                   <Supertip>
                     <Title resid="TaskpaneButton.Label" />
@@ -50,11 +54,12 @@
                     <bt:Image size="80" resid="Icon.80x80" />
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>RedlineTaskpane</TaskpaneId>
+                    <TaskpaneId>GoosefarmTaskpane</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url" />
                   </Action>
                 </Control>
               </Group>
+              <Label resid="Tab.Label" />
             </CustomTab>
           </ExtensionPoint>
         </DesktopFormFactor>
@@ -72,14 +77,14 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Redline AI" />
-        <bt:String id="Tab.Label" DefaultValue="Redline AI" />
+        <bt:String id="GetStarted.Title" DefaultValue="Goosefarm AI" />
+        <bt:String id="Tab.Label" DefaultValue="Goosefarm AI" />
         <bt:String id="Group.Label" DefaultValue="Review" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Open Redline" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Open Goosefarm AI" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="AI contract review inside Word." />
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the AI redlining task pane." />
+        <bt:String id="GetStarted.Description" DefaultValue="AI-powered contract review inside Word." />
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Goosefarm AI for contract review." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
