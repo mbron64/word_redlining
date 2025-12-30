@@ -438,6 +438,8 @@ async function callOpenAIForIssues({ messages }) {
   const payload = await response.json();
   const content = payload?.choices?.[0]?.message?.content;
   
+  console.log("[callOpenAIForIssues] Raw AI content:", content?.substring(0, 1000));
+  
   if (!content) {
     throw new Error("No response from AI.");
   }
@@ -445,15 +447,25 @@ async function callOpenAIForIssues({ messages }) {
   // Parse the JSON response
   try {
     const parsed = JSON.parse(content);
-    // Handle both array and object with issues property
+    console.log("[callOpenAIForIssues] Parsed type:", typeof parsed, "isArray:", Array.isArray(parsed), "keys:", Object.keys(parsed));
+    
+    // Handle various response formats
     if (Array.isArray(parsed)) {
+      // Already an array of issues
       return parsed;
     } else if (parsed.issues && Array.isArray(parsed.issues)) {
+      // Object with issues property
       return parsed.issues;
+    } else if (parsed.type && parsed.originalText) {
+      // Single issue object - wrap in array
+      console.log("[callOpenAIForIssues] Single issue object detected, wrapping in array");
+      return [parsed];
     } else {
+      console.log("[callOpenAIForIssues] Unknown format, returning empty array. Parsed:", JSON.stringify(parsed).substring(0, 500));
       return [];
     }
   } catch (e) {
+    console.log("[callOpenAIForIssues] JSON parse failed:", e.message);
     // Try to extract array from response
     const match = content.match(/\[[\s\S]*\]/);
     if (match) {
@@ -519,7 +531,192 @@ app.get("/api/review-stream", async (req, res) => {
   res.end();
 });
 
-// POST version for larger documents (body can be bigger than URL)
+// Split contract into clauses/paragraphs for clause-by-clause processing
+function splitIntoClauses(text) {
+  // Normalize line endings (Word may use \r\n, \r, or \n)
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // Split by:
+  // - Double newlines (paragraphs)
+  // - Single newlines followed by numbers (1. 2. etc)
+  // - Single newlines followed by letters in parens ((a) (b) etc)
+  // - Sentences ending with period followed by capital letter (fallback)
+  let rawClauses = normalized.split(/\n\s*\n/);
+  
+  // If we only got 1 clause, try splitting by single newlines
+  if (rawClauses.length <= 1) {
+    rawClauses = normalized.split(/\n(?=\d+\.|\d+\)|\([a-zA-Z0-9]+\)|[A-Z])/);
+  }
+  
+  // If still only 1 clause, try splitting by sentences (every ~500 chars at sentence boundaries)
+  if (rawClauses.length <= 1 && normalized.length > 500) {
+    rawClauses = [];
+    const sentences = normalized.split(/(?<=[.!?])\s+(?=[A-Z])/);
+    let buffer = "";
+    
+    for (const sentence of sentences) {
+      buffer += (buffer ? " " : "") + sentence;
+      if (buffer.length >= 400) {
+        rawClauses.push(buffer);
+        buffer = "";
+      }
+    }
+    if (buffer.trim()) {
+      rawClauses.push(buffer);
+    }
+  }
+  
+  // Filter out empty clauses and combine very short ones
+  const clauses = [];
+  let buffer = "";
+  
+  for (const clause of rawClauses) {
+    const trimmed = clause.trim();
+    if (!trimmed) continue;
+    
+    buffer += (buffer ? "\n\n" : "") + trimmed;
+    
+    // If buffer is substantial enough (at least 150 chars and has a sentence), add as a clause
+    if (buffer.length >= 150 && buffer.includes(".")) {
+      clauses.push(buffer);
+      buffer = "";
+    }
+  }
+  
+  // Don't forget remaining buffer
+  if (buffer.trim()) {
+    if (clauses.length > 0 && buffer.length < 100) {
+      // Append short remainder to last clause
+      clauses[clauses.length - 1] += "\n\n" + buffer;
+    } else {
+      clauses.push(buffer);
+    }
+  }
+  
+  console.log("[splitIntoClauses] Input length:", text.length, "Output clauses:", clauses.length, "Clause lengths:", clauses.map(c => c.length));
+  
+  return clauses;
+}
+
+// Build prompt for analyzing a single clause
+function buildClauseReviewMessages({ clause, clauseIndex, totalClauses, instructions, riskProfile }) {
+  const postureMap = {
+    balanced: "You represent the recipient/customer. Be pragmatic but protect their interests.",
+    cautious: "You represent the recipient/customer. Be highly protective - flag any risk and suggest stronger protections.",
+    aggressive: "You represent the recipient/customer. Aggressively negotiate - push back on any term favoring the other party.",
+  };
+
+  const posture = postureMap[riskProfile] || postureMap.balanced;
+
+  return [
+    {
+      role: "system",
+      content: [
+        "You are a senior contracts attorney with 20+ years of experience reviewing commercial agreements.",
+        posture,
+        "",
+        "REVIEW THIS CLAUSE THOROUGHLY. Look for:",
+        "",
+        "**Risk Areas to Flag:**",
+        "- Unlimited liability or uncapped indemnification",
+        "- Broad indemnification obligations",
+        "- One-sided termination rights",
+        "- Auto-renewal clauses without adequate notice periods",
+        "- Unilateral amendment rights",
+        "- Broad IP assignment or license grants",
+        "- Weak confidentiality protections",
+        "- Problematic limitation of liability clauses",
+        "- Missing limitation on consequential damages",
+        "- Unfavorable governing law or venue",
+        "- Broad audit rights",
+        "- Unreasonable non-compete or non-solicitation",
+        "- Vague or undefined key terms",
+        "- Missing caps on fees or price increases",
+        "- Inadequate data protection or security obligations",
+        "- Survival clauses that are too long",
+        "- Assignment restrictions that are one-sided",
+        "",
+        "**Response Format - Return ONE JSON object:**",
+        "",
+        'For edits: { "type": "edit", "originalText": "exact text", "newText": "improved text", "explanation": "why this protects the client", "severity": "low|medium|high" }',
+        'For deletions: { "type": "delete", "originalText": "exact text to remove", "explanation": "why remove it", "severity": "low|medium|high" }',
+        'For flags: { "type": "comment", "originalText": "concerning text", "explanation": "the risk and recommendation", "severity": "low|medium|high" }',
+        'If acceptable: { "type": "none" }',
+        "",
+        "**Severity Guide:**",
+        "- high: Material risk, could cause significant harm (unlimited liability, broad indemnity, IP issues)",
+        "- medium: Notable concern, should be negotiated (auto-renewal, unilateral changes, weak protections)",  
+        "- low: Minor issue, nice to fix but acceptable (unclear language, minor imbalances)",
+        "",
+        "**Rules:**",
+        "- originalText MUST be an EXACT substring from the clause (copy-paste accuracy)",
+        "- Be specific in explanations - cite the actual risk",
+        "- Suggest concrete improvements, not vague recommendations",
+        "- Focus on substantive legal issues, not grammar",
+        "- Return ONLY valid JSON",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        `Review clause ${clauseIndex + 1} of ${totalClauses}:`,
+        "",
+        "---CLAUSE START---",
+        clause,
+        "---CLAUSE END---",
+        "",
+        instructions ? `Client's specific concerns: ${instructions}` : "",
+        "",
+        "Identify the most significant issue in this clause, or return { \"type\": \"none\" } if it's acceptable.",
+      ].filter(Boolean).join("\n"),
+    },
+  ];
+}
+
+// Analyze a single clause
+async function analyzeClause({ clause, clauseIndex, totalClauses, instructions, riskProfile }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+
+  const messages = buildClauseReviewMessages({ clause, clauseIndex, totalClauses, instructions, riskProfile });
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages,
+      temperature: 0.2,
+      max_tokens: 800,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "OpenAI request failed.");
+  }
+
+  const payload = await response.json();
+  const content = payload?.choices?.[0]?.message?.content;
+  
+  if (!content) return null;
+
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed.type === "none" || !parsed.type) return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+// POST version - clause-by-clause streaming
 app.post("/api/review-stream", async (req, res) => {
   // Set SSE headers
   res.setHeader("Content-Type", "text/event-stream");
@@ -530,36 +727,59 @@ app.post("/api/review-stream", async (req, res) => {
 
   const { text, instructions, riskProfile } = req.body || {};
 
+  console.log("[/api/review-stream] Received request, text length:", text?.length);
+
   if (!text || typeof text !== "string") {
     res.write(`data: ${JSON.stringify({ type: "error", message: "Missing contract text." })}\n\n`);
     res.end();
     return;
   }
 
+  // Split contract into clauses
+  const clauses = splitIntoClauses(text);
+  console.log("[/api/review-stream] Split into", clauses.length, "clauses");
+
   // Send start event
-  res.write(`data: ${JSON.stringify({ type: "start", message: "Starting analysis..." })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: "start", message: "Starting analysis...", totalClauses: clauses.length })}\n\n`);
+
+  const allIssues = [];
+  let issueIndex = 0;
 
   try {
-    const messages = buildStreamingReviewMessages({ text, instructions, riskProfile });
-
-    // Get all issues from AI
-    const issues = await callOpenAIForIssues({ messages });
-
-    // Stream each issue as a separate event
-    for (let i = 0; i < issues.length; i++) {
-      const issue = issues[i];
-      issue.index = i;
-      issue.total = issues.length;
+    // Process each clause
+    for (let i = 0; i < clauses.length; i++) {
+      const clause = clauses[i];
       
-      // Send issue event
-      res.write(`data: ${JSON.stringify({ type: "issue", issue })}\n\n`);
+      // Send progress event
+      res.write(`data: ${JSON.stringify({ type: "progress", clauseIndex: i, totalClauses: clauses.length, message: `Analyzing clause ${i + 1} of ${clauses.length}...` })}\n\n`);
       
-      // Small delay to allow UI to process and show progress
-      await new Promise(resolve => setTimeout(resolve, 100));
+      console.log(`[/api/review-stream] Analyzing clause ${i + 1}/${clauses.length} (${clause.length} chars)`);
+      
+      // Analyze this clause
+      const issue = await analyzeClause({
+        clause,
+        clauseIndex: i,
+        totalClauses: clauses.length,
+        instructions,
+        riskProfile,
+      });
+
+      if (issue && issue.type !== "none") {
+        issue.index = issueIndex;
+        issue.clauseIndex = i;
+        issueIndex++;
+        allIssues.push(issue);
+        
+        console.log(`[/api/review-stream] Found issue in clause ${i + 1}:`, issue.type);
+        
+        // Stream the issue immediately
+        res.write(`data: ${JSON.stringify({ type: "issue", issue, clauseIndex: i, totalClauses: clauses.length })}\n\n`);
+      }
     }
 
     // Send completion event
-    res.write(`data: ${JSON.stringify({ type: "complete", totalIssues: issues.length })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: "complete", totalIssues: allIssues.length, totalClauses: clauses.length })}\n\n`);
+    console.log("[/api/review-stream] Complete. Found", allIssues.length, "issues in", clauses.length, "clauses");
     
   } catch (error) {
     console.error("[/api/review-stream] Error:", error.message);

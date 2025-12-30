@@ -1,7 +1,7 @@
 import { getScopeText, applyRedlines } from "./services/wordService.js";
 import { reviewClause } from "./services/aiService.js";
 import { sendChatMessage } from "./services/chatService.js";
-import { diffTokens, formatDiff, formatDiffHtml } from "./utils/diff.js";
+import { diffTokens, formatDiff } from "./utils/diff.js";
 import { loadSettings, saveSettings } from "./utils/storage.js";
 
 const state = {
@@ -314,29 +314,35 @@ function renderIssuesList() {
   }
 
   container.innerHTML = state.issues.map((issue, index) => {
-    const isEdit = issue.type === "edit";
+    const typeClass = issue.type || "comment";
     const severityClass = issue.severity || "medium";
     const statusClass = issue.applied ? "applied" : "";
+    
+    const typeIcons = {
+      edit: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+      </svg>`,
+      delete: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+      </svg>`,
+      comment: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+      </svg>`,
+    };
+
+    const typeLabels = { edit: "Edit", delete: "Delete", comment: "Comment" };
     
     return `
       <div class="issue-card ${statusClass}" data-index="${index}">
         <div class="issue-header">
-          <span class="issue-type ${isEdit ? 'edit' : 'comment'}">
-            ${isEdit ? `
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-              </svg>
-              Edit
-            ` : `
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-              </svg>
-              Comment
-            `}
+          <span class="issue-type ${typeClass}">
+            ${typeIcons[typeClass] || typeIcons.comment}
+            ${typeLabels[typeClass] || "Comment"}
           </span>
           <span class="issue-severity ${severityClass}">${severityClass}</span>
         </div>
         <div class="issue-text">${escapeHtml(truncateText(issue.originalText, 80))}</div>
+        ${issue.type === "edit" && issue.newText ? `<div class="issue-new-text">→ ${escapeHtml(truncateText(issue.newText, 80))}</div>` : ''}
         <div class="issue-explanation">${escapeHtml(issue.explanation)}</div>
         ${issue.applied ? '<div class="issue-status">✓ Applied</div>' : ''}
       </div>
@@ -377,6 +383,23 @@ async function handleIssueClick(index) {
   }
 }
 
+async function deleteTextFromDocument(targetText) {
+  return Word.run(async (context) => {
+    const body = context.document.body;
+    const searchResults = body.search(targetText, { matchCase: false, matchWholeWord: false });
+    searchResults.load("items");
+    await context.sync();
+
+    if (searchResults.items.length > 0) {
+      // Delete by replacing with empty string (shows as deletion in track changes)
+      searchResults.items[0].insertText("", Word.InsertLocation.replace);
+      await context.sync();
+      return true;
+    }
+    return false;
+  });
+}
+
 async function applyIssueToDocument(issue) {
   try {
     if (issue.type === "edit" && issue.newText) {
@@ -386,6 +409,11 @@ async function applyIssueToDocument(issue) {
         // Also add a comment with the explanation
         await addCommentToText(issue.newText, issue.explanation);
       }
+      return success;
+    } else if (issue.type === "delete") {
+      // Delete text (shows as strikethrough in track changes)
+      const success = await deleteTextFromDocument(issue.originalText);
+      // Can't add comment to deleted text, so we skip that
       return success;
     } else if (issue.type === "comment") {
       // Just add a comment
@@ -398,15 +426,15 @@ async function applyIssueToDocument(issue) {
   }
 }
 
-function updateAnalysisProgress(current, total) {
+function updateAnalysisProgress(clauseIndex, totalClauses, issuesFound) {
   const progressEl = document.getElementById("analysisProgress");
   if (progressEl) {
-    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    const percent = totalClauses > 0 ? Math.round(((clauseIndex + 1) / totalClauses) * 100) : 0;
     progressEl.innerHTML = `
       <div class="progress-bar">
         <div class="progress-fill" style="width: ${percent}%"></div>
       </div>
-      <span class="progress-text">Analyzing... ${current}/${total} issues found</span>
+      <span class="progress-text">Analyzing clause ${clauseIndex + 1} of ${totalClauses}... (${issuesFound} issues found)</span>
     `;
   }
 }
@@ -452,6 +480,7 @@ async function handleLiveAnalysis() {
 
   // Get document text based on scope
   const { text } = await getScopeText(state.scope);
+  
   if (!text || !text.trim()) {
     setStatus("No text to analyze. Select text or choose a different scope.", "warning");
     return;
@@ -550,7 +579,13 @@ async function handleLiveAnalysis() {
 async function handleStreamEvent(event) {
   switch (event.type) {
     case "start":
-      setStatus("Analysis started...", "info");
+      setStatus(`Analyzing ${event.totalClauses || 'document'} clauses...`, "info");
+      state.totalClauses = event.totalClauses || 0;
+      break;
+
+    case "progress":
+      // Update progress bar as we move through clauses
+      updateAnalysisProgress(event.clauseIndex, event.totalClauses, state.issues.length);
       break;
 
     case "issue":
@@ -558,7 +593,7 @@ async function handleStreamEvent(event) {
       state.issues.push(issue);
       
       // Update progress
-      updateAnalysisProgress(issue.index + 1, issue.total);
+      updateAnalysisProgress(event.clauseIndex || 0, event.totalClauses || state.totalClauses, state.issues.length);
       
       // Apply the issue to the document immediately
       const applied = await applyIssueToDocument(issue);
@@ -570,7 +605,7 @@ async function handleStreamEvent(event) {
 
     case "complete":
       showAnalysisComplete(event.totalIssues);
-      setStatus(`Analysis complete. ${event.totalIssues} issue${event.totalIssues !== 1 ? 's' : ''} found.`, "success");
+      setStatus(`Analysis complete. Reviewed ${event.totalClauses} clauses, found ${event.totalIssues} issue${event.totalIssues !== 1 ? 's' : ''}.`, "success");
       break;
 
     case "error":
