@@ -1,238 +1,208 @@
-# Goosefarm Word Add-in
+<p align="center">
+  <img src="src/taskpane/assets/logo.png" alt="Goosefarm" width="80" height="80">
+</p>
 
-AI-powered contract review for Microsoft Word. The task pane reads the selected clause, sends it to a secure backend, and applies tracked changes plus comments.
+<h1 align="center">Goosefarm</h1>
 
-## What's included
-- `manifest.xml` for sideloading the add-in
-- Task pane UI in `src/taskpane/`
-- Backend proxy in `server/` that calls OpenAI or Azure OpenAI
+<p align="center">
+  <strong>AI-powered contract review for Microsoft Word</strong>
+</p>
 
-## Quick Start
+<p align="center">
+  Automatically analyze contracts clause-by-clause, apply tracked changes, and add comments—all without leaving Word.
+</p>
 
-### 1. Install dependencies
+---
+
+## ✨ Features
+
+- **Live Document Markup** — Watch as the AI analyzes your contract in real-time, applying edits directly with Track Changes
+- **Clause-by-Clause Analysis** — Breaks contracts into sections and reviews each one, streaming results as issues are found
+- **Smart Risk Detection** — Flags liability caps, indemnification clauses, IP assignments, auto-renewals, and more
+- **Native Word Integration** — Uses Word's Track Changes and Comments, so you can accept/reject edits naturally
+- **Interactive Chat Mode** — Ask questions about specific clauses or get explanations in plain language
+- **Configurable Risk Posture** — Choose Balanced, Risk-Averse, or Aggressive review styles
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- Microsoft Word for Mac (with add-in support)
+- OpenAI API key (or Azure OpenAI)
+
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Generate HTTPS certificates
+### 2. Configure Environment
 
-Office add-ins require HTTPS. Generate a self-signed certificate with proper Subject Alternative Name (SAN):
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your API key:
+
+```env
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_MODEL=gpt-4o
+```
+
+### 3. Generate HTTPS Certificates
+
+Office add-ins require HTTPS. Generate a self-signed certificate:
 
 ```bash
 cd certs
-
-# Create config file
-cat > localhost.cnf << 'EOF'
-[req]
-default_bits = 2048
-prompt = no
-default_md = sha256
-distinguished_name = dn
-x509_extensions = v3_req
-
-[dn]
-C = US
-ST = NY
-L = New York
-O = Goosefarm Dev
-CN = localhost
-
-[v3_req]
-basicConstraints = CA:FALSE
-keyUsage = nonRepudiation, digitalSignature, keyEncipherment
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = localhost
-DNS.2 = 127.0.0.1
-IP.1 = 127.0.0.1
-EOF
-
-# Generate certificate
-openssl req -x509 -newkey rsa:2048 -nodes \
-  -keyout dev.key \
-  -out dev.crt \
-  -days 365 \
-  -config localhost.cnf
+./generate.sh   # Or follow manual steps in certs/README.md
 ```
 
-### 3. Certificate trust (macOS)
-
-When you first open the add-in, Word will show a "Verify Certificate" dialog. **Just click "Continue"** — this is normal for self-signed certificates and the add-in will work fine.
-
-If you want to skip this prompt permanently, see the Troubleshooting section below.
-
-### 4. Start the HTTPS server for the task pane
+### 4. Start the Servers
 
 ```bash
-# Install http-server globally if needed
-npm install -g http-server
+# Terminal 1: Frontend (serves the add-in UI)
+http-server src -S -C certs/dev.crt -K certs/dev.key -p 3000 --cors -c-1
 
-# Serve the task pane with HTTPS (caching enabled for icons)
-http-server src -S -C certs/dev.crt -K certs/dev.key -p 3000 --cors -c3600
-```
-
-### 5. Start the backend API server
-
-In a separate terminal:
-
-```bash
+# Terminal 2: Backend (AI proxy)
 npm run start:server
 ```
 
-The server will automatically use HTTPS if certificates exist in `certs/`. This is required because the taskpane runs over HTTPS and browsers block mixed content (HTTPS → HTTP requests).
-
-### 6. Sideload the add-in (macOS)
-
-On macOS, manually copy the manifest to Word's add-in folder:
+### 5. Install the Add-in in Word
 
 ```bash
-# Create the wef folder if it doesn't exist
+# Copy manifest to Word's add-in folder
 mkdir -p ~/Library/Containers/com.microsoft.Word/Data/Documents/wef
-
-# Copy the manifest
 cp manifest.xml ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
 ```
 
-Then:
-1. **Quit Word completely** (⌘Q)
-2. **Reopen Word**
-3. Go to **Insert → Add-ins → My Add-ins**
-4. Look under **"Developer Add-ins"** — Goosefarm should appear
-5. Click it to open the task pane
+Then restart Word and go to **Insert → Add-ins → My Add-ins → Developer Add-ins**.
 
-## Backend Configuration
+## 📖 Usage
 
-Set these environment variables before running the server:
+1. **Open a contract** in Microsoft Word
+2. **Launch Goosefarm** from the ribbon
+3. **Choose a mode:**
+   - **Chat** — Ask questions about selected text
+   - **Redlining** — Analyze and mark up the document
+4. **Select scope** (Selection, Paragraph, or full Document)
+5. **Click "Analyze Contract"** and watch the AI work
 
-```bash
-# OpenAI (default)
-export AI_PROVIDER=openai
-export OPENAI_API_KEY=your_key
-export OPENAI_MODEL=gpt-4o
+Issues appear in the sidebar as they're found. Click any issue to jump to that location in the document.
 
-# Or Azure OpenAI
-export AI_PROVIDER=azure
-export AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
-export AZURE_OPENAI_KEY=your_key
-export AZURE_OPENAI_DEPLOYMENT=your_deployment
-export AZURE_OPENAI_API_VERSION=2024-06-01
-```
-
-The server listens on `http://localhost:8787` by default.
-
-Tip: Copy `.env.example` to `.env` for persistent configuration.
-
-## Troubleshooting
-
-### Certificate warning won't go away / "Continue" stops working
-
-If you **regenerate the certificate** (e.g., by running the openssl command again), clicking "Continue" will stop working because Word no longer recognizes it. You'll need to properly trust the new certificate:
-
-1. **Regenerate the certificate** with proper SAN (Subject Alternative Name):
-   ```bash
-   cd certs
-   
-   cat > localhost.cnf << 'EOF'
-   [req]
-   default_bits = 2048
-   prompt = no
-   default_md = sha256
-   distinguished_name = dn
-   x509_extensions = v3_req
-
-   [dn]
-   C = US
-   ST = NY
-   L = New York
-   O = Goosefarm Dev
-   CN = localhost
-
-   [v3_req]
-   basicConstraints = CA:FALSE
-   keyUsage = nonRepudiation, digitalSignature, keyEncipherment
-   subjectAltName = @alt_names
-
-   [alt_names]
-   DNS.1 = localhost
-   DNS.2 = 127.0.0.1
-   IP.1 = 127.0.0.1
-   EOF
-
-   openssl req -x509 -newkey rsa:2048 -nodes \
-     -keyout dev.key -out dev.crt -days 365 -config localhost.cnf
-   ```
-
-2. **Trust it in Keychain Access:**
-   - Open **Keychain Access** (Spotlight → "Keychain Access")
-   - Go to **File → Import Items**
-   - Select `certs/dev.crt`
-   - Find **"localhost"** in the list, double-click it
-   - Expand **"Trust"**
-   - Set **"When using this certificate"** to **"Always Trust"**
-   - Close and enter your password
-
-3. **Restart the HTTPS server** and **quit/reopen Word**
-
-### Changes not appearing after updating code
-
-Word caches the taskpane content in WebKit caches. If your HTML/CSS/JS changes aren't showing after restarting Word, clear the cache:
-
-```bash
-rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Caches/WebKit/*
-rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/WebKit/*
-rm -rf ~/Library/Containers/com.microsoft.Word/Data/tmp/WebKit/*
-```
-
-Then quit and restart Word.
-
-### Add-in not appearing
-- Ensure the HTTPS server is running on port 3000
-- Check that `manifest.xml` is in `~/Library/Containers/com.microsoft.Word/Data/Documents/wef/`
-- Fully quit Word (⌘Q) and reopen
-
-### Icon showing as generic green/teal square
-
-Word caches add-in icons in multiple locations. If your custom icon isn't showing (stuck on a generic square), clear ALL Office caches:
-
-```bash
-# Clear all Office add-in caches
-rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Caches/WebKit/*
-rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Caches/Microsoft/*
-rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Application\ Support/Microsoft/Office/16.0/Wef/*
-rm -rf ~/Library/Group\ Containers/UBF8T346G9.Office/User\ Content/wef/*
-rm -rf ~/Library/Containers/com.microsoft.Word/Data/tmp/wefgallery/*
-
-# Re-copy manifest to both wef locations
-cp manifest.xml ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
-cp manifest.xml ~/Library/Group\ Containers/UBF8T346G9.Office/User\ Content/wef/
-```
-
-Then **fully quit Word (⌘Q)** and reopen. The key cache is `Office/16.0/Wef/` which stores add-in manifests and resources.
-
-### Icons not displaying at all
-- Make sure the HTTPS server is running on port 3000
-- Icons must be accessible at the URLs in `manifest.xml` (test with `curl -sk https://localhost:3000/taskpane/assets/icon-32.png`)
-
-## Project Structure
+## 🏗️ Architecture
 
 ```
-├── manifest.xml          # Office add-in manifest
+┌─────────────────┐     HTTPS      ┌─────────────────┐
+│   Microsoft     │◄──────────────►│   Frontend      │
+│   Word          │                │   (port 3000)   │
+│                 │                │   taskpane UI   │
+└─────────────────┘                └────────┬────────┘
+                                            │
+                                            │ HTTPS
+                                            ▼
+                                   ┌─────────────────┐     ┌─────────────┐
+                                   │   Backend       │────►│   OpenAI    │
+                                   │   (port 8787)   │     │   API       │
+                                   │   AI proxy      │     └─────────────┘
+                                   └─────────────────┘
+```
+
+## 📁 Project Structure
+
+```
+├── manifest.xml              # Office add-in manifest
 ├── src/
 │   └── taskpane/
-│       ├── taskpane.html # Task pane UI
-│       ├── taskpane.css  # Styles
-│       ├── taskpane.js   # Frontend logic
-│       ├── assets/       # Icons and logo
-│       ├── services/     # AI and Word API services
-│       └── utils/        # Utilities
+│       ├── taskpane.html     # Main UI
+│       ├── taskpane.css      # Styles
+│       ├── taskpane.js       # Frontend logic
+│       ├── assets/           # Icons and branding
+│       ├── services/         # Word API & AI services
+│       └── utils/            # Diff algorithms, storage
 ├── server/
-│   └── index.js          # Backend API proxy
-└── certs/                # HTTPS certificates (gitignored)
+│   └── index.js              # Express backend with SSE streaming
+└── certs/                    # HTTPS certificates (gitignored)
 ```
 
-## Security Notes
-- Do not embed API keys in the task pane code
-- Use the backend proxy to protect API credentials
-- For production, use enterprise authentication
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | Your OpenAI API key | Required |
+| `OPENAI_MODEL` | Model to use | `gpt-4o` |
+| `AI_PROVIDER` | `openai` or `azure` | `openai` |
+| `PORT` | Backend server port | `8787` |
+
+### Azure OpenAI
+
+```env
+AI_PROVIDER=azure
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_KEY=your-key
+AZURE_OPENAI_DEPLOYMENT=your-deployment
+AZURE_OPENAI_API_VERSION=2024-06-01
+```
+
+## 🔧 Troubleshooting
+
+<details>
+<summary><strong>Add-in won't load / network error</strong></summary>
+
+Ensure both servers are running:
+```bash
+curl -k https://localhost:3000/taskpane/taskpane.html  # Should return HTML
+curl -k https://localhost:8787/api/review             # Should return error (no body)
+```
+</details>
+
+<details>
+<summary><strong>Certificate warning in Word</strong></summary>
+
+Click "Continue" on the certificate prompt. For a permanent fix, trust the certificate in Keychain Access:
+1. Open Keychain Access
+2. File → Import Items → select `certs/dev.crt`
+3. Find "localhost", double-click, expand Trust
+4. Set "When using this certificate" to "Always Trust"
+</details>
+
+<details>
+<summary><strong>Changes not appearing after code updates</strong></summary>
+
+Word caches aggressively. Clear the cache:
+```bash
+rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Caches/WebKit/*
+```
+Then restart Word.
+</details>
+
+<details>
+<summary><strong>Icon showing as generic square</strong></summary>
+
+Clear all Office caches:
+```bash
+rm -rf ~/Library/Containers/com.microsoft.Word/Data/Library/Application\ Support/Microsoft/Office/16.0/Wef/*
+cp manifest.xml ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
+```
+Restart Word completely.
+</details>
+
+## 🔒 Security
+
+- API keys are stored server-side only, never exposed to the browser
+- All communication uses HTTPS
+- The backend acts as a secure proxy to the AI provider
+- For production, implement proper authentication
+
+## 📄 License
+
+MIT
+
+---
+
+<p align="center">
+  Built with ❤️ for contract professionals
+</p>
