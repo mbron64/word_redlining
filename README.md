@@ -14,7 +14,7 @@
 
 ---
 
-## ✨ Features
+## Features
 
 - **Live Document Markup** — Watch as the AI analyzes your contract in real-time, applying edits directly with Track Changes
 - **Clause-by-Clause Analysis** — Breaks contracts into sections and reviews each one, streaming results as issues are found
@@ -23,7 +23,7 @@
 - **Interactive Chat Mode** — Ask questions about specific clauses or get explanations in plain language
 - **Configurable Risk Posture** — Choose Balanced, Risk-Averse, or Aggressive review styles
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -79,7 +79,7 @@ cp manifest.xml ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
 
 Then restart Word and go to **Insert → Add-ins → My Add-ins → Developer Add-ins**.
 
-## 📖 Usage
+## Usage
 
 1. **Open a contract** in Microsoft Word
 2. **Launch Goosefarm** from the ribbon
@@ -91,7 +91,7 @@ Then restart Word and go to **Insert → Add-ins → My Add-ins → Developer Ad
 
 Issues appear in the sidebar as they're found. Click any issue to jump to that location in the document.
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐     HTTPS      ┌─────────────────┐
@@ -109,7 +109,7 @@ Issues appear in the sidebar as they're found. Click any issue to jump to that l
                                    └─────────────────┘
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ├── manifest.xml              # Office add-in manifest
@@ -126,7 +126,7 @@ Issues appear in the sidebar as they're found. Click any issue to jump to that l
 └── certs/                    # HTTPS certificates (gitignored)
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -147,7 +147,7 @@ AZURE_OPENAI_DEPLOYMENT=your-deployment
 AZURE_OPENAI_API_VERSION=2024-06-01
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 <details>
 <summary><strong>Add-in won't load / network error</strong></summary>
@@ -190,19 +190,19 @@ cp manifest.xml ~/Library/Containers/com.microsoft.Word/Data/Documents/wef/
 Restart Word completely.
 </details>
 
-## 🔒 Security
+## Security
 
 - API keys are stored server-side only, never exposed to the browser
 - All communication uses HTTPS
 - The backend acts as a secure proxy to the AI provider
 - For production, implement proper authentication
 
-## 📄 License
+## License
 
 MIT
 
 ---
 
 <p align="center">
-  Built with ❤️ for contract professionals
+  Built for contract professionals
 </p>
